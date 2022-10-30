@@ -168,7 +168,7 @@ namespace Server
                                 using (var web = new WebClient())
                                 {
                                     web.Headers["Content-Type"] = "application/json; charset=utf-8";
-                                    var r = await web.UploadStringTaskAsync(hashrateUrl, push);
+                                    var r = await web.UploadStringTaskAsync(url, push);
                                 }
                             }
                             catch (Exception e)
@@ -188,7 +188,7 @@ namespace Server
                                 using (var web = new WebClient())
                                 {
                                     web.Headers["Content-Type"] = "application/json; charset=utf-8";
-                                    var r = await web.UploadStringTaskAsync(url, push);
+                                    var r = await web.UploadStringTaskAsync(hashrateUrl, push);
                                 }
                             }
                             catch
