@@ -93,13 +93,15 @@ namespace Server
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine($"[{DateTime.Now}][{url}] GetMeta: {e.InnerException?.Message ?? e.Message}.");
+                    Console.WriteLine($"[{DateTime.Now}] GetMeta: {e.InnerException?.Message ?? e.Message}.");
                     now = null;
                 }
 
                 if (now != old)
                 {
                     old = now;
+
+                    Console.WriteLine($"[{DateTime.Now}] NewMeta: {now}.");
 
                     if (string.IsNullOrEmpty(now))
                     {
