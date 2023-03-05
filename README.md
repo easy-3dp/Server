@@ -5,10 +5,6 @@ node教程 https://github.com/easy-3dp/3DP/blob/main/tutorial_cn.md
   
 <font color=red>注意</font>运行这个程序需要安装.net6，安装教程：  
 ```sh
-apt install -y wget
-wget https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
-dpkg -i packages-microsoft-prod.deb
-rm packages-microsoft-prod.deb
 apt update && apt install -y dotnet-sdk-6.0
 ```
   
@@ -25,10 +21,6 @@ node tutorial https://github.com/easy-3dp/3DP/blob/main/tutorial_en.md
 
 <font color=red>Note</font> that to run this program you need to install .net6, installation tutorial:  
 ```sh
-apt install -y wget
-wget https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
-dpkg -i packages-microsoft-prod.deb
-rm packages-microsoft-prod.deb
 apt update && apt install -y dotnet-sdk-6.0
 ```
   
