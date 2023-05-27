@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using System.Net.Sockets;
+using System.Numerics;
 using System.Text;
 using Newtonsoft.Json.Linq;
 
@@ -7,11 +8,8 @@ namespace Server
 {
     internal class Program
     {
-        const string hashrateUrl = "http://120.46.172.54:6666/upload";
-        static string url;
-        static int port;
         static HashSet<MinerClient> clients = new HashSet<MinerClient>();
-        static byte[] metaBytes = new byte[96];
+        static byte[] metaBytes;
 
         const byte id_ping = 0;
         const byte id_pong = 1;
@@ -24,12 +22,34 @@ namespace Server
         static readonly byte[] ids_push = { id_push };
         static readonly byte[] ids_speed= { id_speed };
 
+        static StringBuilder poolSb = new StringBuilder();
+
+        class Args
+        {
+            public string url = string.Empty;
+            public int node_port = 9933;
+            public int port = 9999;
+            public string pool_id = string.Empty;
+            //public string member_id = string.Empty;
+            //public string key = string.Empty;
+            public int interval = 200;
+            public bool isSolo = false;
+        }
+        static readonly Args args1 = new Args();
+
         static void Main(string[] args)
         {
-            //args = new string[] { "9933", "9999" };
-            url = $"http://127.0.0.1:{args[0]}";
-            //url = $"http://192.168.31.129:9933";
-            port = int.Parse(args[1]);
+            ArgsParser(args, args1);
+            if(args1.url == string.Empty)
+                args1.url = $"http://127.0.0.1:{args1.node_port}";
+
+            args1.isSolo = args1.pool_id == string.Empty /*|| args1.member_id == string.Empty || args1.key == string.Empty*/;
+            if (args1.isSolo) Console.WriteLine($"[{DateTime.Now}] mode: SOLO");
+            else Console.WriteLine($"[{DateTime.Now}] mode: POOL");
+
+            if (args1.isSolo) metaBytes = new byte[96];
+            else metaBytes = new byte[209];
+
             NodeMeta();
             NodeServer();
             MinerTimeout();
@@ -39,12 +59,30 @@ namespace Server
             }
         }
 
+        static void ArgsParser(string[] args, Args args1)
+        {
+            for (int i = 0; i < args.Length; i++)
+            {
+                switch (args[i].Trim())
+                {
+                    default: throw new Exception("不支持的参数" + args[i]);
+                    case "--node-url": args1.url = args[++i]; break;
+                    case "--node-port": args1.node_port = (int)uint.Parse(args[++i]); break;
+                    case "--port": args1.port = (int)uint.Parse(args[++i]); break;
+                    case "--pool-id": args1.pool_id = args[++i]; break;
+                    //case "--member-id": args1.member_id = args[++i]; break;
+                    //case "--key": args1.key = args[++i]; break;
+                    case "--interval": args1.interval = (int)uint.Parse(args[++i]); break;
+                }
+            }
+        }
+
         // miner <-> server
         static async void NodeServer()
         {
-            TcpListener listener = new TcpListener(IPAddress.Any, port);
+            TcpListener listener = new TcpListener(IPAddress.Any, args1.port);
             listener.Start();
-            Console.WriteLine($"[{DateTime.Now}] Server listening on {port}");
+            Console.WriteLine($"[{DateTime.Now}] Server listening on {args1.port}");
             while (true)
             {
                 try
@@ -66,7 +104,6 @@ namespace Server
                 catch (Exception e)
                 {
                     Console.WriteLine($"[{DateTime.Now}] ⛏️  : connnect error: {e.InnerException?.Message ?? e.Message}.");
-                    continue;
                 }
             }
         }
@@ -85,15 +122,57 @@ namespace Server
                     using (var web = new WebClient())
                     {
                         web.Headers["Content-Type"] = "application/json; charset=utf-8";
-                        json = await web.UploadStringTaskAsync(url, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"poscan_getMeta\"}");
+
+                        if (args1.isSolo)
+                        {
+                            json = await web.UploadStringTaskAsync(args1.url, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"poscan_getMeta\"}");
+                        }
+                        else
+                        {
+                            json = await web.UploadStringTaskAsync(args1.url, $"{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"poscan_getMiningParams\",\"params\":[\"{args1.pool_id}\"]}}");
+                        }
                     }
 
                     var jo = JObject.Parse(json);
-                    now = (string?)jo["result"];
+
+                    if (jo.ContainsKey("error"))
+                    {
+                        Console.WriteLine($"[{DateTime.Now}] GetMeta: {jo["error"]["message"]}.");
+                        now = null;
+                    }
+                    else
+                    {
+                        if (args1.isSolo)
+                        {
+                            now = (string?)jo["result"];
+                        }
+                        else
+                        {
+                            poolSb.Clear();
+                            poolSb.Append(((string?)jo["result"][0])[2..].PadLeft(64, '0'));
+                            poolSb.Append(((string?)jo["result"][1])[2..].PadLeft(64, '0'));
+
+                            var str = ((string?)jo["result"][2])[2..].PadLeft(64, '0');
+                            for (int i = str.Length - 2; i >= 0; i -= 2)
+                            {
+                                poolSb.Append(str[i..(i + 2)]);
+                            }
+
+                            str = ((string?)jo["result"][3])[2..].PadLeft(64, '0');
+                            for (int i = str.Length - 2; i >= 0; i -= 2)
+                            {
+                                poolSb.Append(str[i..(i + 2)]);
+                            }
+
+                            poolSb.Append(((string?)jo["result"][4])[2..].PadLeft(64, '0'));
+
+                            now = poolSb.ToString();
+                        }
+                    }
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine($"[{DateTime.Now}] GetMeta: {e.InnerException?.Message ?? e.Message}.");
+                    Console.WriteLine($"[{DateTime.Now}] GetMeta: {e.InnerException?.Message ?? e.Message}");
                     now = null;
                 }
 
@@ -101,7 +180,7 @@ namespace Server
                 {
                     old = now;
 
-                    Console.WriteLine($"[{DateTime.Now}] NewMeta: {now}.");
+                    Console.WriteLine($"[{DateTime.Now}] NewMeta: {now}");
 
                     if (string.IsNullOrEmpty(now))
                     {
@@ -110,6 +189,10 @@ namespace Server
                     else
                     {
                         Hex.Decode(now, metaBytes);
+                        if (!args1.isSolo)
+                        {
+                            Encoding.ASCII.GetBytes(args1.pool_id, metaBytes.AsSpan(160..));
+                        }
                     }
 
                     lock (clients)
@@ -121,15 +204,14 @@ namespace Server
                     }
                 }
 
-                await Task.Delay(200);
+                await Task.Delay(args1.interval);
             }
         }
 
         // miner -> server -> node
         static async void ClientRecive(MinerClient miner)
         {
-            byte[] body_buffer = new byte[100 * 1024];
-            byte[] id_buffer   = new byte[1];
+            byte[] buffer = new byte[1000 * 1024];
 
             string ip;
             try { ip = miner.client.Client.RemoteEndPoint.ToString(); }
@@ -139,7 +221,7 @@ namespace Server
             {
                 try
                 {
-                    int len = await miner.client.GetStream().ReadAsync(id_buffer.AsMemory(0, 1));
+                    int len = await miner.client.GetStream().ReadAsync(buffer.AsMemory(0, 1));
                     if (len == 0)
                     {
                         Console.WriteLine($"[{DateTime.Now}] ⛏️  [{ip}] recive len 0.");
@@ -147,10 +229,10 @@ namespace Server
                         return;
                     }
 
-                    switch (id_buffer[0])
+                    switch (buffer[0])
                     {
                         default:
-                            Console.WriteLine($"[{DateTime.Now}] ⛏️  [{ip}] recived error id {id_buffer[0]}.");
+                            Console.WriteLine($"[{DateTime.Now}] ⛏️  [{ip}] recived error id {buffer[0]}.");
                             CloseClient(miner);
                             return;
                         case id_ping:
@@ -159,43 +241,26 @@ namespace Server
                             break;
                         case id_push:
                             len = 0;
-                            do { len += await miner.client.GetStream().ReadAsync(body_buffer.AsMemory(len..body_buffer.Length)); }
-                            while (body_buffer[len - 1] != 0);
+                            do { len += await miner.client.GetStream().ReadAsync(buffer.AsMemory(len..buffer.Length)); }
+                            while (buffer[len - 1] != 0);
 
                             try
                             {
                                 Console.WriteLine($"[{DateTime.Now}] ⛏️  [{ip}] recived push.");
 
-                                var push = Encoding.ASCII.GetString(body_buffer.AsSpan(0, len-1));
+                                var push = Encoding.ASCII.GetString(buffer.AsSpan(0, len-1));
                                 using (var web = new WebClient())
                                 {
                                     web.Headers["Content-Type"] = "application/json; charset=utf-8";
-                                    var r = await web.UploadStringTaskAsync(url, push);
+                                    var result = await web.UploadStringTaskAsync(args1.url, push);
+                                    Console.WriteLine($"[{DateTime.Now}] 📡  [{ip}] Node echo:{result}.");
                                 }
                             }
                             catch (Exception e)
                             {
-                                Console.WriteLine($"[{DateTime.Now}][{url}] push to node error: {e.InnerException?.Message ?? e.Message}.");
+                                Console.WriteLine($"[{DateTime.Now}][{args1.url}] push to node error: {e.InnerException?.Message ?? e.Message}.");
                             }
 
-                            break;
-                        case id_speed:
-                            len = 0;
-                            do { len += await miner.client.GetStream().ReadAsync(body_buffer.AsMemory(len..body_buffer.Length)); }
-                            while (body_buffer[len - 1] != 0);
-
-                            try
-                            {
-                                var push = Encoding.ASCII.GetString(body_buffer.AsSpan(0, len - 1));
-                                using (var web = new WebClient())
-                                {
-                                    web.Headers["Content-Type"] = "application/json; charset=utf-8";
-                                    var r = await web.UploadStringTaskAsync(hashrateUrl, push);
-                                }
-                            }
-                            catch
-                            {
-                            }
                             break;
                     }
                 }
