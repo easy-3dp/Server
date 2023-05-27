@@ -8,9 +8,29 @@ node教程 https://github.com/easy-3dp/3DP/blob/main/tutorial_cn.md
 apt update && apt install -y dotnet-sdk-6.0
 ```
   
-运行命令，第一个参数`9933`是node的`rpc-port`，第二个参数`9999`是给miner连接的
+所有参数
 ```sh
-dotnet Server.dll 9933 9999
+--node-url  节点地址
+--node-port 节点端口，默认server程序和node程序在同一台电脑
+--port      对锄头的端口
+--pool-id   官方版矿池id
+--interval  轮询节点的时间间隔，单位毫秒
+```
+如果你想solo，你的server程序和node程序在同一台电脑里：
+```sh
+dotnet Server.dll --node-port 9933 --port 9999
+```
+如果你想solo，你的server程序和node程序不在同一台电脑里：
+```sh
+dotnet Server.dll --node-url http://ip:9933 --port 9999
+```
+如果你想pool，你的server程序和node程序在同一台电脑里：
+```sh
+dotnet Server.dll --node-port 9933 --port 9999 --pool-id d1...
+```
+如果你想pool，你的server程序和node程序不在同一台电脑里：
+```sh
+dotnet Server.dll --node-url http://ip:9933 --port 9999 --pool-id d1...
 ```
         
         
@@ -24,7 +44,27 @@ node tutorial https://github.com/easy-3dp/3DP/blob/main/tutorial_en.md
 apt update && apt install -y dotnet-sdk-6.0
 ```
   
-How to run: The first parameter `9933` is node's `rpc-port`，The second parameter `9999` is for miner connection
+All parameters
 ```sh
-dotnet Server.dll 9933 9999
+--node-url  node url
+--node-port node port (server program and node program are considered to be on the same computer)
+--port      for miner
+--pool-id   mining pool id
+--interval  for polling the node, in milliseconds
+```
+If you want to solo mine and your server program and node program are on the same computer:
+```sh
+dotnet Server.dll --node-port 9933 --port 9999
+```
+If you want to solo mine and your server program and node program are on different computers:
+```sh
+dotnet Server.dll --node-url http://ip:9933 --port 9999
+```
+If you want to mine in a pool and your server program and node program are on the same computer:
+```sh
+dotnet Server.dll --node-port 9933 --port 9999 --pool-id d1...
+```
+If you want to mine in a pool and your server program and node program are on different computers:
+```sh
+dotnet Server.dll --node-url http://ip:9933 --port 9999 --pool-id d1...
 ```
